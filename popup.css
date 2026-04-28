@@ -170,6 +170,25 @@ input::placeholder, textarea::placeholder {
 
 .logo-icon {
   color: var(--accent);
+  display: flex;
+  align-items: center;
+}
+
+.logo-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+
+[data-theme="dark"] .logo-img {
+  mix-blend-mode: screen;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-img {
+    mix-blend-mode: screen;
+  }
 }
 
 .actions {
