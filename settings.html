@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WorkSpace Settings</title>
+  <script>
+    (function(){
+      var t=localStorage.getItem('workspace_theme');
+      if(t&&t!=='system')document.documentElement.setAttribute('data-theme',t);
+    })();
+  </script>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo"><span class="logo-icon">⚡</span> WorkSpace</div>
+    <nav>
+      <button class="nav-item active" data-target="general">General</button>
+      <button class="nav-item" data-target="focus">Focus Mode</button>
+      <button class="nav-item" data-target="tabgroups">Tab Groups</button>
+      <button class="nav-item" data-target="shortcuts">Shortcuts</button>
+      <button class="nav-item" data-target="advanced">Advanced</button>
+      <button class="nav-item" data-target="data">Data</button>
+    </nav>
+  </div>
+
+  <div class="content">
+    <div id="general" class="section active">
+      <div class="section-title"><span class="dot" style="background: var(--accent);"></span> General</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Appearance</div>
+          <div class="setting-desc">Color theme — follows your system or set it manually</div>
+        </div>
+        <div class="theme-toggle" id="themeToggle">
+          <button class="theme-btn" data-theme="system">System</button>
+          <button class="theme-btn" data-theme="light">Light</button>
+          <button class="theme-btn" data-theme="dark">Dark</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Default Launch Mode</div>
+          <div class="setting-desc">Open workspaces in the current window or a new window</div>
+        </div>
+        <select id="defaultLaunchMode">
+          <option value="current">Current Window</option>
+          <option value="new">New Window</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Show Icons in Names</div>
+          <div class="setting-desc">Display workspace icons in the list</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="showEmoji"><span class="slider"></span></label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Show Last Used Time</div>
+          <div class="setting-desc">Display relative time since last launch</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="showLastUsed"><span class="slider"></span></label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Confirm Before Closing Tabs</div>
+          <div class="setting-desc">Show a warning when a workspace is set to close existing tabs</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="confirmBeforeClose"><span class="slider"></span></label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Ignore #hash for Duplicates</div>
+          <div class="setting-desc">Consider URLs with different hash fragments as duplicates</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="ignoreHashForDuplicates"><span class="slider"></span></label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Duplicate Tabs Badge</div>
+          <div class="setting-desc">Show duplicate count on the extension icon</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="showDuplicateBadge"><span class="slider"></span></label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Focus Mode Badge Color</div>
+          <div class="setting-desc">Badge color shown on the extension icon when Focus Mode is active</div>
+        </div>
+        <input type="color" id="badgeColor">
+      </div>
+    </div>
+
+    <div id="focus" class="section">
+      <div class="section-title"><span class="dot" style="background: var(--success);"></span> Focus Mode</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Focus Workspace</div>
+          <div class="setting-desc">Which workspace to launch when toggling Focus Mode</div>
+        </div>
+        <select id="focusModeWorkspaceId">
+          <option value="">None</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Close Other Tabs</div>
+          <div class="setting-desc">Close unrelated tabs when entering Focus Mode</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="focusModeCloseTabs"><span class="slider"></span></label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Open in New Window</div>
+          <div class="setting-desc">Launch the focus workspace in a completely new window</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="focusModeNewWindow"><span class="slider"></span></label>
+      </div>
+    </div>
+
+    <div id="tabgroups" class="section">
+      <div class="section-title"><span class="dot" style="background: var(--warning);"></span> Tab Groups</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Default Group Color</div>
+          <div class="setting-desc">Global default color for new tab groups</div>
+        </div>
+        <select id="defaultGroupColor">
+          <option value="grey">Grey</option>
+          <option value="blue">Blue</option>
+          <option value="red">Red</option>
+          <option value="yellow">Yellow</option>
+          <option value="green">Green</option>
+          <option value="pink">Pink</option>
+          <option value="purple">Purple</option>
+          <option value="cyan">Cyan</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Auto-Group Tabs</div>
+          <div class="setting-desc">Automatically group tabs on workspace launch</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="autoGroupTabs"><span class="slider"></span></label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Group Name Format</div>
+          <div class="setting-desc">Use {workspace_name} to insert the workspace name</div>
+        </div>
+        <input type="text" id="defaultGroupNameFormat" placeholder="{workspace_name}">
+      </div>
+    </div>
+
+    <div id="shortcuts" class="section">
+      <div class="section-title"><span class="dot" style="background: var(--danger);"></span> Shortcuts</div>
+
+      <div class="shortcut-list">
+        <div class="shortcut-item">
+          <span>Open Popup</span>
+          <kbd id="kbOpenPopup">Ctrl+Shift+W</kbd>
+        </div>
+        <div class="shortcut-item">
+          <span>Open Switcher</span>
+          <kbd id="kbSwitcher">Unassigned</kbd>
+        </div>
+        <div class="shortcut-item">
+          <span>Toggle Focus Mode</span>
+          <kbd id="kbFocus">Unassigned</kbd>
+        </div>
+      </div>
+
+      <div class="setting-row" style="margin-top: 20px; border: none;">
+        <button id="openShortcutsBtn" class="secondary-btn">Customize Shortcuts in Chrome</button>
+      </div>
+    </div>
+
+    <div id="advanced" class="section">
+      <div class="section-title"><span class="dot" style="background: var(--warning);"></span> Advanced Features</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Enable Time Tracker</div>
+          <div class="setting-desc">Silently record daily active time spent on each domain.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="enableTimeTracker"><span class="slider"></span></label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-name">Idle Threshold (seconds)</div>
+          <div class="setting-desc">Time before system is considered idle to pause tracking.</div>
+        </div>
+        <input type="number" id="idleThreshold" value="300" min="60" max="3600" style="width: 80px;">
+      </div>
+
+      <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+        <div class="setting-info">
+          <div class="setting-name">Tab Sequence Rules <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">(optional)</span></div>
+          <div class="setting-desc">Without rules, the Sequence button automatically groups tabs by domain frequency. Add regex patterns here to override that order — matched tabs are placed first.</div>
+        </div>
+        <div id="regexRulesContainer" style="width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; background: var(--bg-surface);">
+          <div id="regexRulesList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+          <button id="addRegexRuleBtn" class="secondary-btn" style="margin-top: 10px;">+ Add Rule</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="data" class="section">
+      <div class="section-title"><span class="dot" style="background: var(--text-muted);"></span> Data Management</div>
+
+      <div class="data-actions">
+        <button id="exportDataBtn" class="secondary-btn">Export Workspaces (.json)</button>
+        <button id="importDataBtn" class="secondary-btn">Import Workspaces</button>
+        <input type="file" id="importFileInput" accept=".json" class="hidden">
+
+        <div class="danger-zone">
+          <h4>Danger Zone</h4>
+          <button id="resetSettingsBtn" class="danger-btn">Reset All Settings</button>
+          <button id="deleteAllWorkspacesBtn" class="danger-btn">Delete All Workspaces</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden">Saved ✓</div>
+
+  <div id="confirmDialog" class="hidden dialog-overlay">
+    <div class="dialog">
+      <p id="confirmDialogText">Are you sure?</p>
+      <div class="dialog-actions">
+        <button id="cancelConfirmBtn">Cancel</button>
+        <button id="proceedConfirmBtn" class="danger-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>
