@@ -98,10 +98,20 @@ const notesSaveIndicator = document.getElementById('notesSaveIndicator');
 let workspaces = [];
 let settings = {};
 let focusModeActive = false;
+let focusEndTime = null;          // ms timestamp when current timer expires
+let focusCountdownInterval = null;
 let openTabs = [];
 let editingWorkspaceId = null;
 let contextMenuTargetId = null;
 let workspaceToDeleteId = null;
+
+// Focus panel elements (populated after DOM ready)
+let focusPanel, closeFocusPanelBtn, focusDurationInput,
+    focusDurDecBtn, focusDurIncBtn,
+    focusWorkspaceList, focusCloseTabsRow, focusCloseTabs,
+    cancelFocusBtn, startFocusBtn;
+let focusSelectedWsId = null;
+let focusWsItems = [];  // [{id, name, emoji, closePreviousTabs}]
 
 const ICONS = {
   compass: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
@@ -131,10 +141,27 @@ const ICONS = {
  */
 async function init() {
   try {
-    const data = await chrome.storage.local.get(['workspaces', 'settings', 'focusModeActive']);
-    workspaces = data.workspaces || [];
-    settings = data.settings || {};
-    focusModeActive = data.focusModeActive || false;
+    // Bind focus panel elements after DOM is ready
+    focusPanel          = document.getElementById('focusPanel');
+    closeFocusPanelBtn  = document.getElementById('closeFocusPanelBtn');
+    focusDurationInput  = document.getElementById('focusDurationInput');
+    focusDurDecBtn      = document.getElementById('focusDurDecBtn');
+    focusDurIncBtn      = document.getElementById('focusDurIncBtn');
+    focusWorkspaceList  = document.getElementById('focusWorkspaceList');
+    focusCloseTabsRow   = document.getElementById('focusCloseTabsRow');
+    focusCloseTabs      = document.getElementById('focusCloseTabs');
+    cancelFocusBtn      = document.getElementById('cancelFocusBtn');
+    startFocusBtn       = document.getElementById('startFocusBtn');
+    initFocusPanel();
+
+    const [localData, sessionData] = await Promise.all([
+      chrome.storage.local.get(['workspaces', 'settings', 'focusModeActive']),
+      chrome.storage.session.get(['tt_focusEndTime'])
+    ]);
+    workspaces     = localData.workspaces || [];
+    settings       = localData.settings  || {};
+    focusModeActive = localData.focusModeActive || false;
+    focusEndTime   = (focusModeActive && sessionData.tt_focusEndTime) ? sessionData.tt_focusEndTime : null;
 
     updateFocusModeUI();
     renderWorkspaces();
@@ -659,30 +686,217 @@ async function launchWorkspace(id) {
 }
 
 /**
- * Focus Mode
+ * Focus Mode — button click
  */
-focusToggleBtn.addEventListener('click', async () => {
-  // Send message to background to toggle and handle launching
-  chrome.runtime.sendMessage({ action: 'toggleFocusMode' }, async () => {
-    // Optimistic UI update
-    focusModeActive = !focusModeActive;
-    updateFocusModeUI();
-    
-    // Close popup if activating focus mode (which switches windows/tabs)
-    if (focusModeActive) {
-      setTimeout(() => window.close(), 200);
-    }
-  });
+focusToggleBtn.addEventListener('click', () => {
+  if (focusModeActive) {
+    // Stop focus mode immediately
+    chrome.runtime.sendMessage({ action: 'stopFocusMode' }, () => {
+      focusModeActive = false;
+      focusEndTime    = null;
+      updateFocusModeUI();
+    });
+  } else {
+    // Open focus panel
+    openFocusPanel();
+  }
 });
 
+/**
+ * Update focus button appearance + live countdown.
+ */
 function updateFocusModeUI() {
+  clearInterval(focusCountdownInterval);
+
   if (focusModeActive) {
     focusToggleBtn.classList.add('active');
-    focusToggleBtn.innerHTML = `${ICONS.target} Focus Active`;
+
+    if (focusEndTime && focusEndTime > Date.now()) {
+      // Live countdown — updates every second
+      const tick = () => {
+        const remain = Math.max(0, focusEndTime - Date.now());
+        const mm = String(Math.floor(remain / 60000)).padStart(2, '0');
+        const ss = String(Math.floor((remain % 60000) / 1000)).padStart(2, '0');
+        focusToggleBtn.innerHTML = `${ICONS.target} ${mm}:${ss}`;
+        if (remain <= 0) {
+          clearInterval(focusCountdownInterval);
+          focusModeActive = false;
+          focusEndTime    = null;
+          updateFocusModeUI();
+        }
+      };
+      tick();
+      focusCountdownInterval = setInterval(tick, 1000);
+    } else {
+      focusToggleBtn.innerHTML = `${ICONS.target} Focus On`;
+    }
   } else {
     focusToggleBtn.classList.remove('active');
     focusToggleBtn.innerHTML = `${ICONS.target} Focus`;
   }
+}
+
+// ─── FOCUS PANEL ─────────────────────────────────────────────────────────────
+
+function initFocusPanel() {
+  // +/− duration buttons
+  focusDurDecBtn.addEventListener('click', () => {
+    focusDurationInput.value = Math.max(1, (parseInt(focusDurationInput.value) || 25) - 5);
+  });
+  focusDurIncBtn.addEventListener('click', () => {
+    focusDurationInput.value = Math.min(240, (parseInt(focusDurationInput.value) || 25) + 5);
+  });
+
+  closeFocusPanelBtn.addEventListener('click', closeFocusPanel);
+  cancelFocusBtn.addEventListener('click', closeFocusPanel);
+  startFocusBtn.addEventListener('click', confirmStartFocus);
+
+  // Keyboard navigation on the workspace chip list
+  focusWorkspaceList.addEventListener('keydown', e => {
+    if (!focusWsItems.length) return;
+    const chips = [...focusWorkspaceList.querySelectorAll('.focus-ws-chip')];
+    let idx = focusWsItems.findIndex(i => i.id === focusSelectedWsId);
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      idx = (idx + 1) % chips.length;
+      selectFocusWs(idx);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      idx = (idx - 1 + chips.length) % chips.length;
+      selectFocusWs(idx);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmStartFocus();
+    }
+  });
+
+  // Global Escape / Enter shortcuts while panel is open
+  document.addEventListener('keydown', e => {
+    if (focusPanel.classList.contains('hidden')) return;
+    if (e.key === 'Escape') {
+      closeFocusPanel();
+    } else if (e.key === 'Enter') {
+      const tag = document.activeElement.tagName;
+      // Don't intercept Enter on focusWorkspaceList (handled above) or buttons
+      if (tag !== 'BUTTON' && document.activeElement !== focusWorkspaceList) {
+        e.preventDefault();
+        confirmStartFocus();
+      }
+    }
+  });
+}
+
+function openFocusPanel() {
+  // Pre-fill duration from settings
+  focusDurationInput.value = Math.max(1, parseInt(settings.focusDuration) || 25);
+  renderFocusWorkspaces();
+  focusPanel.classList.remove('hidden');
+  mainContent.style.opacity = '0.3';
+  mainContent.style.pointerEvents = 'none';
+  // Auto-focus duration input for immediate keyboard input
+  requestAnimationFrame(() => {
+    focusDurationInput.focus();
+    focusDurationInput.select();
+  });
+}
+
+function closeFocusPanel() {
+  focusPanel.classList.add('hidden');
+  mainContent.style.opacity = '';
+  mainContent.style.pointerEvents = '';
+}
+
+function renderFocusWorkspaces() {
+  // Build item list: None first, then all workspaces
+  focusWsItems = [
+    { id: null, name: 'No workspace', emoji: null, closePreviousTabs: false },
+    ...workspaces.map(w => ({
+      id: w.id,
+      name: w.name,
+      iconId: w.iconId,
+      emoji: w.emoji,
+      closePreviousTabs: w.closePreviousTabs
+    }))
+  ];
+  focusSelectedWsId = null; // default: no workspace
+
+  focusWorkspaceList.innerHTML = '';
+  focusWsItems.forEach((item, i) => {
+    const chip = document.createElement('button');
+    chip.className = 'focus-ws-chip' + (i === 0 ? ' selected' : '');
+    chip.setAttribute('role', 'option');
+    chip.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+    chip.dataset.idx = i;
+
+    let iconHtml;
+    if (item.id === null) {
+      // "None" — no icon, just a dash
+      iconHtml = `<span class="focus-ws-icon focus-ws-none-icon">⊘</span>`;
+    } else if (item.iconId && ICONS[item.iconId]) {
+      iconHtml = `<span class="focus-ws-icon">${ICONS[item.iconId]}</span>`;
+    } else {
+      iconHtml = `<span class="focus-ws-icon focus-ws-emoji">${item.emoji || '📁'}</span>`;
+    }
+
+    chip.innerHTML = `${iconHtml}<span class="focus-ws-name">${escapeHtml(item.name)}</span>`;
+    chip.addEventListener('click', () => selectFocusWs(i));
+    focusWorkspaceList.appendChild(chip);
+  });
+
+  updateFocusCloseRow();
+}
+
+function selectFocusWs(idx) {
+  if (idx < 0 || idx >= focusWsItems.length) return;
+  const item = focusWsItems[idx];
+  focusSelectedWsId = item.id;
+
+  // Update chip visual state
+  focusWorkspaceList.querySelectorAll('.focus-ws-chip').forEach((c, i) => {
+    const active = i === idx;
+    c.classList.toggle('selected', active);
+    c.setAttribute('aria-selected', active ? 'true' : 'false');
+    // Scroll selected chip into view
+    if (active) c.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+
+  updateFocusCloseRow();
+}
+
+function updateFocusCloseRow() {
+  if (focusSelectedWsId) {
+    const ws = focusWsItems.find(i => i.id === focusSelectedWsId);
+    focusCloseTabs.checked = !!(ws && ws.closePreviousTabs);
+    focusCloseTabsRow.classList.remove('hidden');
+  } else {
+    focusCloseTabsRow.classList.add('hidden');
+  }
+}
+
+async function confirmStartFocus() {
+  const durationMin  = Math.max(0, parseInt(focusDurationInput.value) || 0);
+  const closeTabs    = focusSelectedWsId ? focusCloseTabs.checked : false;
+
+  // Get current window id to pass to background
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const currentWindowId = tab?.windowId ?? null;
+
+  closeFocusPanel();
+
+  chrome.runtime.sendMessage({
+    action: 'startFocusMode',
+    workspaceId: focusSelectedWsId,
+    closeTabs,
+    durationMin,
+    currentWindowId
+  }, () => {
+    focusModeActive = true;
+    focusEndTime    = durationMin > 0 ? Date.now() + durationMin * 60 * 1000 : null;
+    updateFocusModeUI();
+    // Close popup if a workspace is being launched (tabs will change)
+    if (focusSelectedWsId) setTimeout(() => window.close(), 150);
+  });
 }
 
 /**

@@ -323,11 +323,279 @@ input::placeholder, textarea::placeholder {
   transform: scale(0.96);
 }
 
+/* Focus button — active state: darker, logo-orange themed */
 #focusToggleBtn.active {
-  background: var(--accent-soft);
+  background: rgba(212,135,74,.22);
   color: var(--accent);
-  border-color: var(--accent-glow);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-glow);
+  font-variant-numeric: tabular-nums;
 }
+
+/* ── FOCUS PANEL ─────────────────────────────────────────────── */
+.focus-panel {
+  position: absolute;
+  top: 49px;
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 14px 12px;
+  z-index: 20;
+  box-shadow: var(--shadow-md);
+  /* Animated reveal (same pattern as quickAddPanel) */
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--transition-slow), transform var(--transition-slow);
+}
+
+/* Two-class selector overrides .hidden { display:none !important } */
+.focus-panel.hidden {
+  display: block !important;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
+/* Header */
+.focus-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.focus-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.focus-close-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+.focus-close-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* Duration row */
+.focus-duration-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.focus-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.focus-kbd {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--text-muted);
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.focus-duration-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.focus-dur-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition);
+}
+.focus-dur-btn:hover { background: var(--bg-input); }
+.focus-dur-btn:active { transform: scale(0.92); }
+
+#focusDurationInput {
+  width: 54px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 4px 6px;
+  transition: border-color var(--transition);
+}
+#focusDurationInput:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+/* Hide native spin arrows */
+#focusDurationInput::-webkit-inner-spin-button,
+#focusDurationInput::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+.focus-dur-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Workspace selector */
+.focus-ws-section {
+  margin-bottom: 10px;
+}
+
+.focus-ws-list {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 6px 2px 4px;
+  scrollbar-width: none;
+  outline: none;
+  margin-top: 6px;
+}
+.focus-ws-list::-webkit-scrollbar { display: none; }
+
+.focus-ws-chip {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 10px 6px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  min-width: 56px;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+.focus-ws-chip:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-input);
+}
+.focus-ws-chip.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.focus-ws-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  height: 16px;
+}
+.focus-ws-chip.selected .focus-ws-icon { color: var(--accent); }
+
+.focus-ws-none-icon {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.focus-ws-emoji {
+  font-size: 14px;
+}
+
+.focus-ws-name {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 62px;
+}
+.focus-ws-chip.selected .focus-ws-name { color: var(--accent); }
+
+/* Close tabs checkbox */
+.focus-close-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  cursor: pointer;
+  padding: 2px 2px;
+  user-select: none;
+}
+.focus-close-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* Action row */
+.focus-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.focus-cancel-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  transition: background var(--transition), color var(--transition);
+}
+.focus-cancel-btn:hover {
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.focus-start-btn {
+  flex: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  transition: background var(--transition), transform 100ms;
+}
+.focus-start-btn:hover  { background: var(--accent-hover); }
+.focus-start-btn:active { transform: scale(0.97); }
 
 /* ── QUICK ADD PANEL ───────────────────────────────────────── */
 #quickAddPanel {

@@ -70,43 +70,125 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 });
 
-/**
- * Toggle Focus Mode state globally and launch focus workspace if set.
- */
-async function toggleFocusMode() {
-  try {
-    const data = await chrome.storage.local.get(['focusModeActive', 'settings', 'workspaces']);
-    const isActive = data.focusModeActive;
-    const settings = data.settings || DEFAULT_SETTINGS;
-    
-    const newActiveState = !isActive;
-    await chrome.storage.local.set({ focusModeActive: newActiveState });
-    
-    await updateBadge(newActiveState, settings.badgeColor);
+// ─── FOCUS MODE ──────────────────────────────────────────────────────────────
 
-    if (newActiveState && settings.focusModeWorkspaceId) {
-      const workspace = data.workspaces?.find(w => w.id === settings.focusModeWorkspaceId);
+/**
+ * Start focus mode. Called from the popup panel (full options) or keyboard
+ * shortcut (uses saved settings as defaults).
+ * @param {object} opts
+ * @param {string|null} opts.workspaceId   – workspace to launch (null = none)
+ * @param {boolean|null} opts.closeTabs    – override workspace closePreviousTabs
+ * @param {number} opts.durationMin        – timer duration in minutes (0 = no timer)
+ * @param {number|null} opts.currentWindowId – Chrome window id from popup
+ */
+async function startFocusMode({ workspaceId = null, closeTabs = null, durationMin = 0, currentWindowId = null } = {}) {
+  try {
+    const data = await chrome.storage.local.get(['settings', 'workspaces']);
+    const settings = data.settings || DEFAULT_SETTINGS;
+
+    await chrome.storage.local.set({ focusModeActive: true });
+
+    // ── Timer ────────────────────────────────────────────────────────────────
+    let endTime = null;
+    if (durationMin > 0) {
+      endTime = Date.now() + durationMin * 60 * 1000;
+      await chrome.storage.session.set({ tt_focusEndTime: endTime });
+      // Tick every minute to refresh badge
+      chrome.alarms.create('focusTimerTick', { periodInMinutes: 1 });
+      // Fire exactly when the session ends
+      chrome.alarms.create('focusTimerEnd', { when: endTime });
+    } else {
+      await chrome.storage.session.remove('tt_focusEndTime');
+    }
+
+    await updateFocusBadge(endTime, settings.badgeColor);
+
+    // ── Launch workspace ──────────────────────────────────────────────────────
+    const wsId = workspaceId ?? settings.focusModeWorkspaceId ?? null;
+    if (wsId) {
+      const workspace = (data.workspaces || []).find(w => w.id === wsId);
       if (workspace) {
-        await launchWorkspace(workspace, settings);
+        const shouldClose = closeTabs !== null ? closeTabs : (workspace.closePreviousTabs ?? settings.focusModeCloseTabs);
+        const wsWithOverride = { ...workspace, closePreviousTabs: shouldClose };
+        if (currentWindowId) {
+          await handlePopupLaunch(wsId, currentWindowId, wsWithOverride);
+        } else {
+          await launchWorkspace(wsWithOverride, settings);
+        }
       }
     }
   } catch (e) {
-    console.error('Error toggling focus mode', e);
+    console.error('startFocusMode failed', e);
   }
 }
 
 /**
- * Update extension badge based on focus mode state.
- * @param {boolean} isActive
- * @param {string} color
+ * Stop focus mode: clear timer, badge, and storage state.
  */
-async function updateBadge(isActive, color) {
-  if (isActive) {
-    await chrome.action.setBadgeText({ text: "●" });
-    await chrome.action.setBadgeBackgroundColor({ color: color || "#d4874a" });
-  } else {
-    // Check duplicates to restore badge if needed
+async function stopFocusMode() {
+  try {
+    await chrome.storage.local.set({ focusModeActive: false });
+    await chrome.storage.session.remove('tt_focusEndTime');
+    chrome.alarms.clear('focusTimerTick');
+    chrome.alarms.clear('focusTimerEnd');
+    await chrome.action.setBadgeText({ text: '' });
     checkForDuplicates();
+  } catch (e) {
+    console.error('stopFocusMode failed', e);
+  }
+}
+
+/**
+ * Update the extension badge to show the focus countdown (or active dot).
+ * Badge fits ~4 chars cleanly:  "25m" / "9:45" / "●"
+ * @param {number|null} endTime  – ms timestamp when timer ends, null = no timer
+ * @param {string} badgeColor
+ */
+async function updateFocusBadge(endTime, badgeColor) {
+  const color = badgeColor || '#d4874a';
+  await chrome.action.setBadgeBackgroundColor({ color });
+
+  if (!endTime) {
+    await chrome.action.setBadgeText({ text: '●' });
+    return;
+  }
+
+  const remainSec = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+  if (remainSec === 0) {
+    await chrome.action.setBadgeText({ text: '✓' });
+    return;
+  }
+  const remainMin = Math.ceil(remainSec / 60);
+  // ≥ 10 min → "25m"  |  < 10 min → "9:45"
+  let text;
+  if (remainMin >= 10) {
+    text = `${remainMin}m`;
+  } else {
+    const mm = Math.floor(remainSec / 60);
+    const ss = String(remainSec % 60).padStart(2, '0');
+    text = `${mm}:${ss}`;
+  }
+  await chrome.action.setBadgeText({ text });
+}
+
+/**
+ * Keyboard-shortcut toggle — uses saved settings as defaults.
+ */
+async function toggleFocusMode() {
+  try {
+    const data = await chrome.storage.local.get(['focusModeActive', 'settings']);
+    if (data.focusModeActive) {
+      await stopFocusMode();
+    } else {
+      const s = data.settings || DEFAULT_SETTINGS;
+      await startFocusMode({
+        workspaceId:  s.focusModeWorkspaceId || null,
+        closeTabs:    s.focusModeCloseTabs ?? true,
+        durationMin:  parseInt(s.focusDuration) || 0
+      });
+    }
+  } catch (e) {
+    console.error('toggleFocusMode failed', e);
   }
 }
 
@@ -203,28 +285,45 @@ async function launchWorkspace(workspace, settings) {
   await chrome.storage.local.set({ workspaces: updatedWorkspaces });
 }
 
-// Initial badge check
+// Initial badge check on SW startup
 chrome.storage.local.get(['focusModeActive', 'settings'], async (data) => {
   if (data.focusModeActive) {
-    await updateBadge(true, data.settings?.badgeColor);
+    const session = await chrome.storage.session.get(['tt_focusEndTime']);
+    await updateFocusBadge(session.tt_focusEndTime || null, data.settings?.badgeColor);
   } else {
     checkForDuplicates();
   }
 });
 
-// Listen for storage changes to sync badge
+// Unified storage change listener
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.focusModeActive) {
-    chrome.storage.local.get(['settings'], async (data) => {
-      await updateBadge(changes.focusModeActive.newValue, data.settings?.badgeColor);
-    });
+  if (namespace !== 'local') return;
+
+  // Sync badge when focus mode is deactivated externally
+  if (changes.focusModeActive && !changes.focusModeActive.newValue) {
+    chrome.action.setBadgeText({ text: '' });
+    checkForDuplicates();
+  }
+
+  // Update idle detection threshold when settings change
+  if (changes.settings) {
+    const s = changes.settings.newValue || {};
+    chrome.idle.setDetectionInterval(parseInt(s.idleThreshold) || 120);
   }
 });
 
-// Listen for messages from popup
+// Message handler
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'toggleFocusMode') {
     toggleFocusMode().then(() => sendResponse({ success: true }));
+    return true;
+  }
+  if (request.action === 'startFocusMode') {
+    startFocusMode(request).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (request.action === 'stopFocusMode') {
+    stopFocusMode().then(() => sendResponse({ ok: true }));
     return true;
   }
   if (request.action === 'launchWorkspace') {
@@ -421,82 +520,108 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 // --- TIME TRACKER LOGIC ---
+// BUG FIXES:
+//   1. Key was `timeTrackerEnabled` in bg but settings saves as `enableTimeTracker` → tracker never ran
+//   2. Key was `timeTrackerIdle` in bg but settings saves as `idleThreshold`, and was wrongly * 60
+//   3. MV3 service workers are killed ~30s after inactivity — in-memory state (activeDomain,
+//      domainStartTime) was wiped on every restart, so the alarm woke the SW but found null and bailed.
+//      Fix: persist tracking state to chrome.storage.session (survives SW restarts within a session).
+
 let activeDomain = null;
 let domainStartTime = null;
 let isTrackerIdle = false;
 
+/** Persist tracking state to session storage so it survives SW restarts */
+async function saveTrackerState() {
+  try {
+    await chrome.storage.session.set({
+      tt_activeDomain: activeDomain,
+      tt_domainStartTime: domainStartTime,
+      tt_isIdle: isTrackerIdle
+    });
+  } catch(e) {}
+}
+
+/** Restore tracking state from session storage after a SW restart */
+async function restoreTrackerState() {
+  try {
+    const s = await chrome.storage.session.get(['tt_activeDomain', 'tt_domainStartTime', 'tt_isIdle']);
+    if (s.tt_activeDomain)    activeDomain    = s.tt_activeDomain;
+    if (s.tt_domainStartTime) domainStartTime = s.tt_domainStartTime;
+    if (s.tt_isIdle !== undefined) isTrackerIdle = s.tt_isIdle;
+  } catch(e) {}
+}
+
 function getDomain(url) {
   try {
     const urlObj = new URL(url);
-    if (['http:', 'https:'].includes(urlObj.protocol)) {
-      return urlObj.hostname;
-    }
+    if (['http:', 'https:'].includes(urlObj.protocol)) return urlObj.hostname;
   } catch(e) {}
   return null;
 }
 
 function getTodayString() {
   const d = new Date();
-  // Adjust for local timezone offset to get local YYYY-MM-DD
-  const offset = d.getTimezoneOffset() * 60000;
-  const localDate = new Date(d.getTime() - offset);
+  const localDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
   return localDate.toISOString().split('T')[0];
 }
 
 async function flushTimeData() {
+  // Recover in-memory state if SW was killed and restarted
+  if (!activeDomain || !domainStartTime) await restoreTrackerState();
   if (!activeDomain || !domainStartTime || isTrackerIdle) return;
-  
+
   const now = Date.now();
   const elapsedSec = Math.floor((now - domainStartTime) / 1000);
   if (elapsedSec <= 0) return;
-  
+
   try {
     const data = await chrome.storage.local.get(['timeTracker', 'settings']);
     const settings = data.settings || {};
-    if (!settings.timeTrackerEnabled) return;
+    if (!settings.enableTimeTracker) return;           // FIX 1: was timeTrackerEnabled
 
     const tracker = data.timeTracker || {};
     const today = getTodayString();
-    
     if (!tracker[today]) tracker[today] = {};
     tracker[today][activeDomain] = (tracker[today][activeDomain] || 0) + elapsedSec;
-    
-    // Purge older than 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const offset = sevenDaysAgo.getTimezoneOffset() * 60000;
-    const localSevenDaysAgo = new Date(sevenDaysAgo.getTime() - offset);
-    const cutoff = localSevenDaysAgo.toISOString().split('T')[0];
-    
+
+    // Purge data older than 7 days
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 7);
+    const cutoff = new Date(cutoffDate.getTime() - cutoffDate.getTimezoneOffset() * 60000)
+      .toISOString().split('T')[0];
     for (const date in tracker) {
-      if (date < cutoff) {
-        delete tracker[date];
-      }
+      if (date < cutoff) delete tracker[date];
     }
 
     await chrome.storage.local.set({ timeTracker: tracker });
     domainStartTime = now;
-  } catch(e) {}
+    await saveTrackerState();                          // FIX 3: persist updated start time
+  } catch(e) { console.error('flushTimeData failed', e); }
 }
 
 async function handleTabFocusChange(tabId, windowId) {
   const data = await chrome.storage.local.get(['settings']);
-  if (!data.settings?.timeTrackerEnabled) return;
+  if (!data.settings?.enableTimeTracker) return;       // FIX 1: was timeTrackerEnabled
 
   await flushTimeData();
 
   if (windowId === chrome.windows.WINDOW_ID_NONE || isTrackerIdle) {
     activeDomain = null;
+    domainStartTime = null;
+    await saveTrackerState();
     return;
   }
 
   try {
     const tab = await chrome.tabs.get(tabId);
-    activeDomain = getDomain(tab.url);
-    domainStartTime = Date.now();
+    activeDomain   = getDomain(tab.url);
+    domainStartTime = activeDomain ? Date.now() : null;
   } catch(e) {
-    activeDomain = null;
+    activeDomain   = null;
+    domainStartTime = null;
   }
+  await saveTrackerState();                            // FIX 3: persist new domain
 }
 
 chrome.tabs.onActivated.addListener((activeInfo) => {
@@ -506,58 +631,70 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 chrome.windows.onFocusChanged.addListener(async (windowId) => {
   if (windowId === chrome.windows.WINDOW_ID_NONE) {
     await flushTimeData();
-    activeDomain = null;
+    activeDomain   = null;
+    domainStartTime = null;
+    await saveTrackerState();
   } else {
     try {
-      const tabs = await chrome.tabs.query({ active: true, windowId: windowId });
-      if (tabs.length > 0) {
-        handleTabFocusChange(tabs[0].id, windowId);
-      }
+      const tabs = await chrome.tabs.query({ active: true, windowId });
+      if (tabs.length > 0) handleTabFocusChange(tabs[0].id, windowId);
     } catch(e) {}
   }
 });
 
 chrome.idle.onStateChanged.addListener(async (newState) => {
   if (newState === 'idle' || newState === 'locked') {
-    isTrackerIdle = true;
+    isTrackerIdle  = true;
     await flushTimeData();
-    activeDomain = null;
+    activeDomain   = null;
+    domainStartTime = null;
+    await saveTrackerState();
   } else if (newState === 'active') {
     isTrackerIdle = false;
     try {
-      const window = await chrome.windows.getLastFocused();
-      const tabs = await chrome.tabs.query({ active: true, windowId: window.id });
-      if (tabs.length > 0) {
-        handleTabFocusChange(tabs[0].id, window.id);
-      }
+      const win  = await chrome.windows.getLastFocused();
+      const tabs = await chrome.tabs.query({ active: true, windowId: win.id });
+      if (tabs.length > 0) handleTabFocusChange(tabs[0].id, win.id);
     } catch(e) {}
   }
 });
 
-// Settings watcher to update idle threshold
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.settings) {
-    const newSettings = changes.settings.newValue || {};
-    if (newSettings.timeTrackerEnabled && newSettings.timeTrackerIdle) {
-      chrome.idle.setDetectionInterval(newSettings.timeTrackerIdle * 60);
-    }
-  }
-});
+// Idle-threshold update is handled by the unified storage.onChanged listener above.
 
-// Periodic flush every 30s using alarms for MV3 compatibility
-chrome.alarms.create("timeTrackerFlush", { periodInMinutes: 0.5 });
+// Alarms — MV3 requires alarms instead of setInterval in service workers
+chrome.alarms.create('timeTrackerFlush', { periodInMinutes: 0.5 });
+
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === "timeTrackerFlush") {
+  if (alarm.name === 'timeTrackerFlush') {
     await flushTimeData();
+
+  } else if (alarm.name === 'focusTimerTick') {
+    // Refresh badge countdown every minute
+    const [localData, sessionData] = await Promise.all([
+      chrome.storage.local.get(['settings', 'focusModeActive']),
+      chrome.storage.session.get(['tt_focusEndTime'])
+    ]);
+    if (localData.focusModeActive && sessionData.tt_focusEndTime) {
+      await updateFocusBadge(sessionData.tt_focusEndTime, localData.settings?.badgeColor);
+    }
+
+  } else if (alarm.name === 'focusTimerEnd') {
+    // Timer expired — stop focus mode and notify
+    await stopFocusMode();
+    try {
+      chrome.notifications.create('focusDone', {
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: 'Focus session complete!',
+        message: 'Great work — your focus timer has ended.'
+      });
+    } catch (e) { /* notifications permission missing */ }
   }
 });
 
-// Initial idle threshold set
+// Set idle detection threshold on SW startup
 chrome.storage.local.get(['settings'], (data) => {
-  const settings = data.settings || {};
-  if (settings.timeTrackerEnabled && settings.timeTrackerIdle) {
-    chrome.idle.setDetectionInterval(settings.timeTrackerIdle * 60);
-  } else {
-    chrome.idle.setDetectionInterval(120); // Default 2 mins
-  }
+  const s = data.settings || {};
+  // FIX 1 + 2: was timeTrackerEnabled / timeTrackerIdle * 60
+  chrome.idle.setDetectionInterval(parseInt(s.idleThreshold) || 120);
 });

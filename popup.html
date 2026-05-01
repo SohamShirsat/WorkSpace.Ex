@@ -57,6 +57,46 @@
     </div>
   </div>
 
+  <!-- ── Focus Mode Panel ─────────────────────────────────────── -->
+  <div id="focusPanel" class="focus-panel hidden">
+    <div class="focus-panel-header">
+      <span class="focus-panel-title">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        Focus Session
+      </span>
+      <button id="closeFocusPanelBtn" class="focus-close-btn" title="Close (Esc)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="focus-duration-row">
+      <span class="focus-label">Duration</span>
+      <div class="focus-duration-ctrl">
+        <button id="focusDurDecBtn" class="focus-dur-btn" title="−5 min">−</button>
+        <input type="number" id="focusDurationInput" min="1" max="240" value="25">
+        <button id="focusDurIncBtn" class="focus-dur-btn" title="+5 min">+</button>
+        <span class="focus-dur-unit">min</span>
+      </div>
+    </div>
+
+    <div class="focus-ws-section">
+      <span class="focus-label">Workspace <kbd class="focus-kbd">← →</kbd></span>
+      <div id="focusWorkspaceList" class="focus-ws-list" tabindex="0" role="listbox" aria-label="Select workspace"></div>
+    </div>
+
+    <label id="focusCloseTabsRow" class="focus-close-row hidden">
+      <input type="checkbox" id="focusCloseTabs"> Close other tabs when launching
+    </label>
+
+    <div class="focus-actions">
+      <button id="cancelFocusBtn" class="focus-cancel-btn">Cancel</button>
+      <button id="startFocusBtn" class="focus-start-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Start  <kbd class="focus-kbd" style="opacity:.7; margin-left:2px;">Enter</kbd>
+      </button>
+    </div>
+  </div>
+
   <div class="search-container">
     <span class="search-icon-wrapper">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>

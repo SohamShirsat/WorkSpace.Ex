@@ -43,7 +43,8 @@ const inputs = {
   ignoreHashForDuplicates: document.getElementById('ignoreHashForDuplicates'),
   showDuplicateBadge: document.getElementById('showDuplicateBadge'),
   enableTimeTracker: document.getElementById('enableTimeTracker'),
-  idleThreshold: document.getElementById('idleThreshold')
+  idleThreshold: document.getElementById('idleThreshold'),
+  focusDuration: document.getElementById('focusDuration')
 };
 
 // Theme toggle

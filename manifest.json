@@ -16,7 +16,8 @@
     "scripting",
     "idle",
     "alarms",
-    "contextMenus"
+    "contextMenus",
+    "notifications"
   ],
   "action": {
     "default_popup": "popup.html"
