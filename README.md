@@ -67,9 +67,9 @@ WorkSpace is a Chrome extension that helps you **organize open tabs into named w
   <img src="screenshots/empty-state.png" width="260" alt="Empty state — onboarding with feature hints" />
 </div>
 
-| Light mode | Dark mode | Empty state |
+| Light mode | Empty state | Dark mode |
 |:---:|:---:|:---:|
-| Duplicate banner, open tabs, workspace list | Full dark theme with warm tones | First-run onboarding with feature discovery |
+| Duplicate banner, open tabs, workspace list | First-run onboarding with feature discovery | Full dark theme with warm tones |
 
 ## Installation
 
