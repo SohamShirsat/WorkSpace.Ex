@@ -59,7 +59,17 @@ WorkSpace is a Chrome extension that helps you **organize open tabs into named w
 
 ## Screenshots
 
-> _Coming soon — UI is dark-themed, minimal, and keyboard-first._
+<div align="center">
+  <img src="screenshots/light-mode.png" width="260" alt="Light mode — open tabs, duplicate detection, workspace list" />
+  &nbsp;&nbsp;
+  <img src="screenshots/dark-mode.png" width="260" alt="Dark mode — same view with warm dark theme" />
+  &nbsp;&nbsp;
+  <img src="screenshots/empty-state.png" width="260" alt="Empty state — onboarding with feature hints" />
+</div>
+
+| Light mode | Dark mode | Empty state |
+|:---:|:---:|:---:|
+| Duplicate banner, open tabs, workspace list | Full dark theme with warm tones | First-run onboarding with feature discovery |
 
 ## Installation
 
