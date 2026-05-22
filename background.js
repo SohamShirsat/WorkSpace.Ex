@@ -234,7 +234,8 @@ async function launchWorkspace(workspace, settings) {
           const groupId = await chrome.tabs.group({ createProperties: { windowId: win.id }, tabIds: groupableTabIds });
           await chrome.tabGroups.update(groupId, {
             title: settings.defaultGroupNameFormat.replace('{workspace_name}', workspace.name),
-            color: workspace.groupColor || settings.defaultGroupColor
+            color: workspace.groupColor || settings.defaultGroupColor,
+            saved: false
           });
         } catch (e) { console.error('Grouping failed', e); }
       }
@@ -265,7 +266,8 @@ async function launchWorkspace(workspace, settings) {
         const groupId = await chrome.tabs.group({ tabIds: groupableTabIds });
         await chrome.tabGroups.update(groupId, {
           title: settings.defaultGroupNameFormat.replace('{workspace_name}', workspace.name),
-          color: workspace.groupColor || settings.defaultGroupColor
+          color: workspace.groupColor || settings.defaultGroupColor,
+          saved: false
         });
       } catch (e) { console.error('Grouping failed', e); }
     }
@@ -373,7 +375,7 @@ async function handlePopupLaunch(workspaceId, currentWindowId) {
         const groupableTabIds = tabs.filter(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://')).map(t => t.id);
         if (groupableTabIds.length > 0) {
           const groupId = await chrome.tabs.group({ createProperties: { windowId: win.id }, tabIds: groupableTabIds });
-          await chrome.tabGroups.update(groupId, { title: groupLabel, color: groupColor });
+          await chrome.tabGroups.update(groupId, { title: groupLabel, color: groupColor, saved: false });
         }
       } catch (e) { console.error('Grouping failed (new window)', e); }
     }
@@ -402,7 +404,7 @@ async function handlePopupLaunch(workspaceId, currentWindowId) {
     if (groupTabs && chrome.tabs.group && groupableTabIds.length > 0) {
       try {
         const groupId = await chrome.tabs.group({ tabIds: groupableTabIds });
-        await chrome.tabGroups.update(groupId, { title: groupLabel, color: groupColor });
+        await chrome.tabGroups.update(groupId, { title: groupLabel, color: groupColor, saved: false });
       } catch (e) { console.error('Grouping failed (current window)', e); }
     }
 
