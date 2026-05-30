@@ -7,6 +7,42 @@ function debug(...args) {
   if (DEBUG) console.log('[WorkSpace BG]', ...args);
 }
 
+// ─── WORKSPACE GROUP TRACKING ────────────────────────────────────────────────
+// Tracks groupIds created by workspace launches so we can prevent Chrome from
+// auto-saving them. Persisted to session storage to survive SW restarts.
+const _wsGroupIds = new Set();
+
+(async () => {
+  try {
+    const s = await chrome.storage.session.get(['_wsGroupIds']);
+    if (Array.isArray(s._wsGroupIds)) s._wsGroupIds.forEach(id => _wsGroupIds.add(id));
+  } catch (e) {}
+})();
+
+function _trackGroup(groupId) {
+  _wsGroupIds.add(groupId);
+  chrome.storage.session.set({ _wsGroupIds: [..._wsGroupIds] }).catch(() => {});
+}
+
+function _untrackGroup(groupId) {
+  _wsGroupIds.delete(groupId);
+  chrome.storage.session.set({ _wsGroupIds: [..._wsGroupIds] }).catch(() => {});
+}
+
+// When Chrome saves a workspace group (e.g. on close or sync), immediately unsave it.
+if (chrome.tabGroups?.onUpdated) {
+  chrome.tabGroups.onUpdated.addListener(async (group) => {
+    if (_wsGroupIds.has(group.id) && group.saved === true) {
+      try { await chrome.tabGroups.update(group.id, { saved: false }); } catch (e) {}
+    }
+  });
+}
+
+// Clean up tracking when a group is fully removed.
+if (chrome.tabGroups?.onRemoved) {
+  chrome.tabGroups.onRemoved.addListener((group) => _untrackGroup(group.id));
+}
+
 const DEFAULT_SETTINGS = {
   defaultLaunchMode: "current",
   showEmoji: true,
@@ -232,6 +268,7 @@ async function launchWorkspace(workspace, settings) {
       if (groupableTabIds.length > 0) {
         try {
           const groupId = await chrome.tabs.group({ createProperties: { windowId: win.id }, tabIds: groupableTabIds });
+          _trackGroup(groupId);
           await chrome.tabGroups.update(groupId, {
             title: settings.defaultGroupNameFormat.replace('{workspace_name}', workspace.name),
             color: workspace.groupColor || settings.defaultGroupColor,
@@ -264,6 +301,7 @@ async function launchWorkspace(workspace, settings) {
     if (groupTabs && chrome.tabs.group && groupableTabIds.length > 0) {
       try {
         const groupId = await chrome.tabs.group({ tabIds: groupableTabIds });
+        _trackGroup(groupId);
         await chrome.tabGroups.update(groupId, {
           title: settings.defaultGroupNameFormat.replace('{workspace_name}', workspace.name),
           color: workspace.groupColor || settings.defaultGroupColor,
@@ -375,6 +413,7 @@ async function handlePopupLaunch(workspaceId, currentWindowId) {
         const groupableTabIds = tabs.filter(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://')).map(t => t.id);
         if (groupableTabIds.length > 0) {
           const groupId = await chrome.tabs.group({ createProperties: { windowId: win.id }, tabIds: groupableTabIds });
+          _trackGroup(groupId);
           await chrome.tabGroups.update(groupId, { title: groupLabel, color: groupColor, saved: false });
         }
       } catch (e) { console.error('Grouping failed (new window)', e); }
@@ -404,6 +443,7 @@ async function handlePopupLaunch(workspaceId, currentWindowId) {
     if (groupTabs && chrome.tabs.group && groupableTabIds.length > 0) {
       try {
         const groupId = await chrome.tabs.group({ tabIds: groupableTabIds });
+        _trackGroup(groupId);
         await chrome.tabGroups.update(groupId, { title: groupLabel, color: groupColor, saved: false });
       } catch (e) { console.error('Grouping failed (current window)', e); }
     }
