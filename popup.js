@@ -1351,6 +1351,11 @@ function sortByDomainFrequency(tabs) {
     try { return new URL(url).hostname; } catch { return url; }
   }
 
+  // Normalize http → https so http:// tabs don't sort before https:// tabs of the same domain
+  function normalizeUrlForSort(url) {
+    return url.replace(/^http:\/\//, 'https://');
+  }
+
   const domainCount = {};
   for (const tab of tabs) {
     const d = getHostname(tab.url);
@@ -1362,6 +1367,11 @@ function sortByDomainFrequency(tabs) {
     const d = getHostname(tab.url);
     if (!groups[d]) groups[d] = [];
     groups[d].push(tab);
+  }
+
+  // Sort tabs within each domain group by full URL (normalized) for stable, deterministic order
+  for (const d of Object.keys(groups)) {
+    groups[d].sort((a, b) => normalizeUrlForSort(a.url).localeCompare(normalizeUrlForSort(b.url)));
   }
 
   // Higher count first; ties broken alphabetically (unique-domain tabs end up last, A-Z)
